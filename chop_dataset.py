@@ -46,6 +46,9 @@ ms_to_frames = lambda ms: round(ms * SAMPLE_RATE / 1000)
 
 # Minimum length of a drum hit.
 MIN_HIT_FRAMES = ms_to_frames(200)
+# All hits occurring within this many frames of each other are considered part of the same drum hit and are ignored.
+# This is a heuristic to try and find monophonic drum hits.
+MIN_HIT_GAP_FRAMES = ms_to_frames(150)
 # Length of silence to trim before the beginning of the following drum hit when determining the length of the active drum hit.
 # This helps prevent small sections of the beginning of subsequent drum hits from being included, due to imprecision in the MIDI timing.
 TRIM_HIT_FRAMES = ms_to_frames(5)
@@ -70,16 +73,17 @@ def append_records(dataset, label_mapping_df, session_metadata, slim_id):
     # Add the hit it to `dataset` if valid.
     # A hit is a dict with keys BEGIN_FRAME_COL and LABEL_COL.
     def check_append_hit(hit, end_frame):
-        if active_hit is None:
+        if hit is None:
             return
         trimmed_end_frame = int(end_frame - TRIM_HIT_FRAMES)
         num_frames = int(trimmed_end_frame - hit[BEGIN_FRAME_COL])
-        if num_frames >= MIN_HIT_FRAMES:
-            dataset[FILE_PATH_COL].append(audio_file_path),
-            dataset[BEGIN_FRAME_COL].append(hit[BEGIN_FRAME_COL]),
-            dataset[NUM_FRAMES_COL].append(num_frames),
-            dataset[LABEL_COL].append(hit[LABEL_COL])
-            dataset[SLIM_ID_COL].append(slim_id)
+        if num_frames < MIN_HIT_FRAMES:
+            return
+        dataset[FILE_PATH_COL].append(audio_file_path),
+        dataset[BEGIN_FRAME_COL].append(hit[BEGIN_FRAME_COL]),
+        dataset[NUM_FRAMES_COL].append(num_frames),
+        dataset[LABEL_COL].append(hit[LABEL_COL])
+        dataset[SLIM_ID_COL].append(slim_id)
 
     def get_label_id(note):
         match = label_mapping_df[label_mapping_df.note == note]
@@ -88,15 +92,27 @@ def append_records(dataset, label_mapping_df, session_metadata, slim_id):
     # [Roland TD-17 MIDI implementation spec](https://static.roland.com/assets/media/pdf/TD-17_MIDI_Imple_eng01_W.pdf)
     # It doesn't say this in the spec, but it seems that note off events are sent as note on events with velocity 0.
 
+    # A note is considered active if it occurred within the last `MIN_HIT_GAP_FRAMES` frames.
+    # This is a dict from note number to its note on frame.
+    active_notes = dict()
     active_hit = None
     total_ticks = 0
     for msg in midi_track:
         total_ticks += msg.time # Delta time
         if msg.type == 'note_on' and msg.velocity > 0:
             frame = int(total_ticks * frames_per_tick)
-            label_id = get_label_id(msg.note)
+            # Expire any active notes that occurred more than `MIN_HIT_GAP_FRAMES` frames ago, and add the new note.
+            expired_notes = [note for note, note_frame in active_notes.items() if frame - note_frame > MIN_HIT_GAP_FRAMES]
+            for note in expired_notes:
+                del active_notes[note]
+            any_active_notes = len(active_notes) > 0
+            active_notes[msg.note] = frame
+            if any_active_notes:
+                active_hit = None
+                continue
             check_append_hit(active_hit, frame)
             active_hit = None
+            label_id = get_label_id(msg.note)
             if label_id is not None: # Ignore notes that aren't in the label mapping.
                 active_hit = {BEGIN_FRAME_COL: frame, LABEL_COL: label_id}
 
@@ -110,8 +126,6 @@ if __name__ == '__main__':
     for i, session_metadata in metadata_df.iterrows():
         print(f'Processing {session_metadata[MIDI_FILENAME]}...')
         append_records(dataset, label_mapping_df, session_metadata, i)
-        if i > 500:
-            break # todo remove this
     
     print('')
     print(f'Saving chopped dataset of {len(dataset[FILE_PATH_COL])} rows to {CHOPPED_OUT_CSV_PATH}.')
