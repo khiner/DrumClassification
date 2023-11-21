@@ -1,5 +1,4 @@
 # This script generates a curated subset of `e-gmd-v1.0.0.csv`.
-# This subset only includes MIDI files from certain sessions (see `INCLUDE_SESSIONS` below).
 # It also excludes several kits to limit the sound range to "standard"-sounding drum kits.
 
 import pandas as pd
@@ -7,12 +6,10 @@ import pandas as pd
 DATASET_DIR = 'dataset/e-gmd-v1.0.0'
 METADATA_PATH = f'{DATASET_DIR}/e-gmd-v1.0.0.csv'
 SLIM_METADATA_OUT_CSV_PATH = 'dataset/e-gmd-v1.0.0-slim.csv'
-INCLUDE_SESSIONS = set('drummer1/session1') # The sessions to include in the slimmed dataset.
 
 if __name__ == '__main__':
     metadata_df = pd.read_csv(METADATA_PATH)
     original_row_count = len(metadata_df)
-    metadata_df = metadata_df[metadata_df.session.isin(INCLUDE_SESSIONS)]
     all_kit_names = set(metadata_df.kit_name.dropna().unique())
     include_kit_names = set([
         'Acoustic Kit', 'Studio (Live Room)', 'Classic Rock', 'Jazz Funk',
@@ -48,5 +45,5 @@ if __name__ == '__main__':
     metadata_df = metadata_df[metadata_df.kit_name.isin(include_kit_names)]
     print('')
     print(f'Saving slimmed dataset of {len(metadata_df)} rows to {SLIM_METADATA_OUT_CSV_PATH}.')
-    print(f'Excluded {original_session_row_count - len(metadata_df)} session rows, and {original_row_count - len(metadata_df)} total rows.')
+    print(f'Excluded {original_session_row_count - len(metadata_df)} of {original_row_count} rows.')
     metadata_df.to_csv(SLIM_METADATA_OUT_CSV_PATH, index=False)
