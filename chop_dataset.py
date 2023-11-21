@@ -50,8 +50,8 @@ MIN_HIT_FRAMES = ms_to_frames(200)
 # This is a heuristic to try and find monophonic drum hits.
 MIN_HIT_GAP_FRAMES = ms_to_frames(150)
 # Length of silence to trim before the beginning of the following drum hit when determining the length of the active drum hit.
-# This helps prevent small sections of the beginning of subsequent drum hits from being included, due to imprecision in the MIDI timing.
-TRIM_HIT_FRAMES = ms_to_frames(5)
+# This helps prevent small sections of the neighboring drum hits from being included, due to imprecision in the MIDI timing.
+TRIM_HIT_FRAMES = ms_to_frames(6)
 
 # Appends a row per "drum hit" to the provided `dataset`.
 # A drum hit candidate starts with a non-zero velocity note-on event, and continues until the next non-zero velocity note-on event.
@@ -62,12 +62,12 @@ TRIM_HIT_FRAMES = ms_to_frames(5)
 def append_records(dataset, label_mapping_df, session_metadata, slim_id):
     audio_file_path = session_metadata[AUDIO_FILENAME]
     midi_file_path = f'{DATASET_DIR}/{session_metadata[MIDI_FILENAME]}'
-    bpm = session_metadata['bpm']
+    bpm = session_metadata[BPM]
 
     midi_file = MidiFile(midi_file_path)
     assert(len(midi_file.tracks) == 2) # First track is metadata, then one track of drum notes.
-    midi_track = midi_file.tracks[1]
 
+    midi_track = midi_file.tracks[1]
     frames_per_tick = (SAMPLE_RATE * 60) / (bpm * midi_file.ticks_per_beat) 
 
     # Add the hit it to `dataset` if valid.
@@ -85,7 +85,7 @@ def append_records(dataset, label_mapping_df, session_metadata, slim_id):
         dataset[LABEL_COL].append(hit[LABEL_COL])
         dataset[SLIM_ID_COL].append(slim_id)
 
-    def get_label_id(note):
+    def get_label(note):
         match = label_mapping_df[label_mapping_df.note == note]
         return None if len(match) == 0 else match.iloc[0].id
 
@@ -100,7 +100,7 @@ def append_records(dataset, label_mapping_df, session_metadata, slim_id):
     for msg in midi_track:
         total_ticks += msg.time # Delta time
         if msg.type == 'note_on' and msg.velocity > 0:
-            frame = int(total_ticks * frames_per_tick)
+            frame = round(total_ticks * frames_per_tick)
             # Expire any active notes that occurred more than `MIN_HIT_GAP_FRAMES` frames ago, and add the new note.
             expired_notes = [note for note, note_frame in active_notes.items() if frame - note_frame > MIN_HIT_GAP_FRAMES]
             for note in expired_notes:
@@ -112,12 +112,12 @@ def append_records(dataset, label_mapping_df, session_metadata, slim_id):
                 continue
             check_append_hit(active_hit, frame)
             active_hit = None
-            label_id = get_label_id(msg.note)
-            if label_id is not None: # Ignore notes that aren't in the label mapping.
-                active_hit = {BEGIN_FRAME_COL: frame, LABEL_COL: label_id}
+            label = get_label(msg.note)
+            if label is not None: # Ignore notes that aren't in the label mapping.
+                active_hit = {BEGIN_FRAME_COL: frame, LABEL_COL: label}
 
     # End the final hit, if present.
-    check_append_hit(active_hit, session_metadata[DURATION] * SAMPLE_RATE)
+    check_append_hit(active_hit, session_metadata[DURATION] * SAMPLE_RATE - 1)
 
 if __name__ == '__main__':
     metadata_df = pd.read_csv(SLIM_METADATA_PATH)
