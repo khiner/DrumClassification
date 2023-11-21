@@ -73,9 +73,8 @@ if __name__ == '__main__':
         midi_file = MidiFile(midi_file_path)
         assert(len(midi_file.tracks) == 2) # First track is metadata, then one track of drum notes.
         for msg in midi_file.tracks[1]:
-            if not hasattr(msg, 'note'):
-                continue # Metadata, program change, etc.
-            all_notes[msg.note] = all_notes.get(msg.note, 0) + 1
+            if msg.type == 'note_on' and msg.velocity > 0:
+                all_notes[msg.note] = all_notes.get(msg.note, 0) + 1
 
     print(f'{METADATA_PATH} has {len(all_notes)} unique notes with the following occurrence counts:')
     sorted_entries = sorted(all_notes.items(), key=lambda item: item[1], reverse=True)
