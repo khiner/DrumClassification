@@ -48,10 +48,10 @@ ms_to_frames = lambda ms: round(ms * SAMPLE_RATE / 1000)
 MIN_HIT_FRAMES = ms_to_frames(200)
 # All hits occurring within this many frames of each other are considered part of the same drum hit and are ignored.
 # This is a heuristic to try and find monophonic drum hits.
-MIN_HIT_GAP_FRAMES = ms_to_frames(150)
+MIN_HIT_GAP_FRAMES = ms_to_frames(100)
 # Length of silence to trim before the beginning of the following drum hit when determining the length of the active drum hit.
 # This helps prevent small sections of the neighboring drum hits from being included, due to imprecision in the MIDI timing.
-TRIM_HIT_FRAMES = ms_to_frames(6)
+TRIM_HIT_FRAMES = ms_to_frames(10)
 
 # Appends a row per "drum hit" to the provided `dataset`.
 # A drum hit candidate starts with a non-zero velocity note-on event, and continues until the next non-zero velocity note-on event.
@@ -62,13 +62,9 @@ TRIM_HIT_FRAMES = ms_to_frames(6)
 def append_records(dataset, label_mapping_df, session_metadata, slim_id):
     audio_file_path = session_metadata[AUDIO_FILENAME]
     midi_file_path = f'{DATASET_DIR}/{session_metadata[MIDI_FILENAME]}'
-    bpm = session_metadata[BPM]
 
     midi_file = MidiFile(midi_file_path)
     assert(len(midi_file.tracks) == 2) # First track is metadata, then one track of drum notes.
-
-    midi_track = midi_file.tracks[1]
-    frames_per_tick = (SAMPLE_RATE * 60) / (bpm * midi_file.ticks_per_beat) 
 
     # Add the hit it to `dataset` if valid.
     # A hit is a dict with keys BEGIN_FRAME_COL and LABEL_COL.
@@ -96,11 +92,11 @@ def append_records(dataset, label_mapping_df, session_metadata, slim_id):
     # This is a dict from note number to its note on frame.
     active_notes = dict()
     active_hit = None
-    total_ticks = 0
-    for msg in midi_track:
-        total_ticks += msg.time # Delta time
+    total_time_sec = 0
+    for msg in midi_file:
+        total_time_sec += msg.time # Delta time
         if msg.type == 'note_on' and msg.velocity > 0:
-            frame = round(total_ticks * frames_per_tick)
+            frame = round(total_time_sec * SAMPLE_RATE)
             # Expire any active notes that occurred more than `MIN_HIT_GAP_FRAMES` frames ago, and add the new note.
             expired_notes = [note for note, note_frame in active_notes.items() if frame - note_frame > MIN_HIT_GAP_FRAMES]
             for note in expired_notes:
