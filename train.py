@@ -104,8 +104,13 @@ def train(model, train_loader, waveform_features, criterion, optimizer, num_epoc
 if __name__ == '__main__':
     label_mapping_df = pd.read_csv(LABEL_MAPPING_PATH)
     chopped_df = pd.read_csv(CHOPPED_DATASET_PATH)
+    slim_df = pd.read_csv(SLIM_METADATA_PATH)
+    # Merge the 'split' column from `slim_df` to `chopped_df` based on the `slim_id` (0-indexed row of the slim metadata).
+    chopped_df['split'] = chopped_df.slim_id.map(slim_df['split'])
+    chopped_df = chopped_df[chopped_df.split == 'train']
+
     dataset = WaveformDataset(chopped_df=chopped_df, label_mapping_df=label_mapping_df)
-    device = torch.device('cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = AudioClassifier(n_mel=N_MEL, num_classes=len(label_mapping_df)).to(device)
 
     train(
