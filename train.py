@@ -6,6 +6,7 @@ import torchaudio
 import torchaudio.transforms as T
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 EGMD_DATASET_DIR = 'dataset/e-gmd-v1.0.0' # The original E-GMD dataset, where the audio files are stored.
 SLIM_METADATA_PATH = 'dataset/e-gmd-v1.0.0-slim.csv' # A curated subset of the E-GMD metadata rows.
@@ -69,7 +70,6 @@ class AudioClassifier(nn.Module):
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.dropout = nn.Dropout(0.5)
 
-        # Calculate the flattened size for the fully connected layer
         time_dim_after_pooling = N_MEL_FRAMES // (2**3)
         conv_output_size = n_mel // (2**3)
         fc1_input_size = 64 * conv_output_size * time_dim_after_pooling
@@ -86,20 +86,40 @@ class AudioClassifier(nn.Module):
         x = self.fc2(x)
         return x
 
-def train(model, train_loader, waveform_features, criterion, optimizer, num_epochs):
-    for epoch in range(num_epochs):
-        for waveforms, labels, _ in train_loader:
-            waveforms = waveforms.to(device)
-            labels = labels.to(device)
-            features = waveform_features(waveforms)
-            outputs = model(features)
-            loss = criterion(outputs, labels)
+def run_epoch(model, loader, waveform_features, criterion, optimizer, device, is_training, print_freq=100):
+    if is_training:
+        model.train()
+    else:
+        model.eval()
 
+    total_loss, running_loss, batch_count = 0, 0, 0
+    for waveforms, labels, _ in tqdm(loader, desc="Train" if is_training else "Evaluate", leave=False):
+        waveforms = waveforms.to(device)
+        labels = labels.to(device)
+        features = waveform_features(waveforms)
+        outputs = model(features)
+        loss = criterion(outputs, labels)
+
+        if is_training:
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
+        running_loss += loss.item()
+        batch_count += 1
+        if batch_count % print_freq == 0:
+            print(f'  Batch {batch_count}: Running Avg Loss: {running_loss / print_freq:.4f}')
+            running_loss = 0  # Reset running loss after logging
+
+        total_loss += loss.item()
+
+    return total_loss / len(loader)
+
+def train(model, train_loader, val_loader, waveform_features, criterion, optimizer, num_epochs, device):
+    for epoch in range(num_epochs):
+        train_loss = run_epoch(model, train_loader, waveform_features, criterion, optimizer, device, is_training=True)
+        val_loss = run_epoch(model, val_loader, waveform_features, criterion, optimizer, device, is_training=False)
+        print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
 
 if __name__ == '__main__':
     label_mapping_df = pd.read_csv(LABEL_MAPPING_PATH)
@@ -107,19 +127,30 @@ if __name__ == '__main__':
     slim_df = pd.read_csv(SLIM_METADATA_PATH)
     # Merge the 'split' column from `slim_df` to `chopped_df` based on the `slim_id` (0-indexed row of the slim metadata).
     chopped_df['split'] = chopped_df.slim_id.map(slim_df['split'])
-    chopped_df = chopped_df[chopped_df.split == 'train']
+    train_df = chopped_df[chopped_df['split'] == 'train']
+    val_df = chopped_df[chopped_df['split'] == 'validation']
 
-    dataset = WaveformDataset(chopped_df=chopped_df, label_mapping_df=label_mapping_df)
+    train_dataset = WaveformDataset(train_df, label_mapping_df)
+    val_dataset = WaveformDataset(val_df, label_mapping_df)
+
+    train_loader = DataLoader(train_dataset, batch_size=32, num_workers=4, shuffle=True, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=32, num_workers=4, shuffle=False, pin_memory=True)
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = AudioClassifier(n_mel=N_MEL, num_classes=len(label_mapping_df)).to(device)
+    waveform_features = WaveformFeatures(n_mel=N_MEL).to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     train(
         model=model,
-        train_loader=DataLoader(dataset, batch_size=32, num_workers=4, shuffle=True, pin_memory=True),
-        waveform_features=WaveformFeatures(n_mel=N_MEL).to(device),
-        criterion=nn.CrossEntropyLoss(),
-        optimizer=torch.optim.Adam(model.parameters(), lr=0.001),
-        num_epochs=10
+        train_loader=train_loader,
+        val_loader=val_loader,
+        waveform_features=waveform_features,
+        criterion=criterion,
+        optimizer=optimizer,
+        num_epochs=10,
+        device=device
     )
 
     # Empirically determine the time dimension of the mel spectrogram.
