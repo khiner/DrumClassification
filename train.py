@@ -1,13 +1,11 @@
-import os
-import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchaudio
 import torchaudio.transforms as T
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-from scipy.io import wavfile
 
 EGMD_DATASET_DIR = 'dataset/e-gmd-v1.0.0' # The original E-GMD dataset, where the audio files are stored.
 SLIM_METADATA_PATH = 'dataset/e-gmd-v1.0.0-slim.csv' # A curated subset of the E-GMD metadata rows.
@@ -29,20 +27,13 @@ class WaveformDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.chopped_df.iloc[idx]
-        sample_rate, data_int16 = wavfile.read(f'{EGMD_DATASET_DIR}/{row.file_path}')
         begin_frame = row.begin_frame
-        num_frames = min(row.num_frames, len(data_int16) - begin_frame)
-        waveform_np = data_int16[begin_frame:begin_frame+num_frames] / (2**15) # Convert from int16 to float32
-        # If the clip is shorter than the clip length, pad it with zeros.
-        # If the clip is longer than the clip length, truncate it.
+        num_frames = min(row.num_frames, CLIP_LENGTH_FRAMES)
+        waveform, sample_rate = torchaudio.load(f'{EGMD_DATASET_DIR}/{row.file_path}', frame_offset=begin_frame, num_frames=num_frames)
+        num_frames = waveform.size(1)
         if num_frames < CLIP_LENGTH_FRAMES:
-            waveform_np = np.pad(waveform_np, (0, CLIP_LENGTH_FRAMES - num_frames))
-        elif num_frames > CLIP_LENGTH_FRAMES:
-            waveform_np = waveform_np[:CLIP_LENGTH_FRAMES]
-        waveform = torch.from_numpy(waveform_np).float()
-        # waveform, sample_rate = torchaudio.load(file_path, frame_offset=begin_frame, num_frames=num_frames)
-        # assert(sample_rate == 44_100)
-        # assert(waveform.size(0) == CLIP_LENGTH_FRAMES)
+            # If the clip is shorter than the clip length, pad it with zeros.
+            waveform = F.pad(waveform, (0, CLIP_LENGTH_FRAMES - num_frames))
         return waveform, row.label, sample_rate
 
 # Audio feature extraction pipeline.
@@ -98,7 +89,7 @@ class AudioClassifier(nn.Module):
 def train(model, train_loader, waveform_features, criterion, optimizer, num_epochs):
     for epoch in range(num_epochs):
         for waveforms, labels, _ in train_loader:
-            waveforms = torch.stack([waveform.unsqueeze(0) for waveform in waveforms]).to(device)
+            waveforms = waveforms.to(device)
             labels = labels.to(device)
             features = waveform_features(waveforms)
             outputs = model(features)
@@ -119,7 +110,7 @@ if __name__ == '__main__':
 
     train(
         model=model,
-        train_loader=DataLoader(dataset, batch_size=32, shuffle=True),
+        train_loader=DataLoader(dataset, batch_size=32, num_workers=4, shuffle=True, pin_memory=True),
         waveform_features=WaveformFeatures(n_mel=N_MEL).to(device),
         criterion=nn.CrossEntropyLoss(),
         optimizer=torch.optim.Adam(model.parameters(), lr=0.001),

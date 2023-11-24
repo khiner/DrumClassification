@@ -46,3 +46,11 @@ The `explore_dataset.ipynb` notebook provides a variety of data exploration tool
 - visualizing relevant data distrubutions
 - previewing the "chopped" drum hit clips
 - listening to random supercuts of clips for all training labels
+
+### Train
+
+```shell
+$ pip install torch torchaudio pandas
+$ pip install SoundFile  # On Mac, torchaudio needs a backend to load wav files.
+$ python train.py
+```
