@@ -35,7 +35,8 @@ _See the scripts for explanations of their roles in data preparation._
 $ pip install pandas mido  # The only packages needed for preprocessing
 $ python create_slim_metadata.py  # Outputs `dataset/e-gmd-v1.0.0-slim.csv`
 $ python create_label_mapping  # Outputs `dataset/note_occurrences_slim.csv` and `label_mapping.csv`
-$ python chop_dataset.py  # Outputs `dataset/chopped.csv`
+$ python chop_dataset.py  # Outputs `dataset/chopped_raw.csv`
+$ python clean_chopped_raw.py  # Outputs `dataset/chopped.csv`
 ```
 
 ### Explore the dataset

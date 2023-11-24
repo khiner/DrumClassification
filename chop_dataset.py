@@ -18,7 +18,7 @@ DATASET_DIR = 'dataset/e-gmd-v1.0.0'
 SLIM_METADATA_PATH = 'dataset/e-gmd-v1.0.0-slim.csv'
 LABEL_MAPPING_PATH = 'dataset/label_mapping.csv'
 
-CHOPPED_OUT_CSV_PATH = 'dataset/chopped.csv'
+CHOPPED_OUT_CSV_PATH = 'dataset/chopped_raw.csv'
 # Output dataset column names
 FILE_PATH_COL = 'file_path'
 BEGIN_FRAME_COL = 'begin_frame'
