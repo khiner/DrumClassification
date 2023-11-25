@@ -159,8 +159,8 @@ def train(model, train_loader, val_loader, waveform_features, criterion, optimiz
     return all_train_losses, all_val_losses
 
 def plot_losses(all_train_losses, all_val_losses, filename='loss_plot.png'):
-    mean_epoch_train_loss = [sum(epoch_losses) / len(epoch_losses) if epoch_losses else 0 for epoch_losses in all_train_losses]
-    mean_epoch_val_loss = [sum(epoch_losses) / len(epoch_losses) if epoch_losses else 0 for epoch_losses in all_val_losses]
+    mean_epoch_train_loss = [np.mean(epoch_losses) if epoch_losses else 0 for epoch_losses in all_train_losses]
+    mean_epoch_val_loss = [np.mean(epoch_losses) if epoch_losses else 0 for epoch_losses in all_val_losses]
     epochs = list(range(1, len(mean_epoch_train_loss) + 1))
 
     plt.figure(figsize=(12, 6))
@@ -170,13 +170,13 @@ def plot_losses(all_train_losses, all_val_losses, filename='loss_plot.png'):
     plt.plot(epochs, mean_epoch_val_loss, label='Epoch Validation Loss', color='red', marker='o')
 
     # Plot batch losses.
-    for epoch, epoch_losses in enumerate(all_train_losses):
-        batch_indices = np.linspace(epoch, epoch + 1, len(epoch_losses))
-        plt.scatter(batch_indices, epoch_losses, color='lightblue', alpha=0.5, label='Batch Train Loss' if epoch == 1 else "")
+    # for epoch, epoch_losses in enumerate(all_train_losses):
+    #     batch_indices = np.linspace(epoch, epoch + 1, len(epoch_losses))
+    #     plt.scatter(batch_indices, epoch_losses, color='lightblue', alpha=0.5, label='Batch Train Loss' if epoch == 1 else "")
 
-    for epoch, epoch_losses in enumerate(all_val_losses):
-        batch_indices = np.linspace(epoch, epoch + 1, len(epoch_losses))
-        plt.scatter(batch_indices, epoch_losses, color='lightcoral', alpha=0.5, label='Batch Validation Loss' if epoch == 1 else "")
+    # for epoch, epoch_losses in enumerate(all_val_losses):
+    #     batch_indices = np.linspace(epoch, epoch + 1, len(epoch_losses))
+    #     plt.scatter(batch_indices, epoch_losses, color='lightcoral', alpha=0.5, label='Batch Validation Loss' if epoch == 1 else "")
 
     plt.title('Training and Validation Losses')
     plt.xlabel('Epoch')
