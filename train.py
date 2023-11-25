@@ -20,8 +20,8 @@ CHECKPOINTS_DIR = 'checkpoints'
 
 SAMPLE_RATE = 44_100 # All audio files in the E-GMD dataset are 44.1 kHz.
 CLIP_LENGTH_FRAMES = SAMPLE_RATE // 2 # All clips are set to a half second long.
-N_MEL = 128 # Number of mel bins to use for the mel spectrogram.
-N_MEL_FRAMES = 16 # Empirically determined from the mel spectrogram. TODO calculate this programatically.
+N_MEL = 256 # Number of mel bins to use for the mel spectrogram.
+N_MEL_FRAMES = 32 # Empirically determined from the mel spectrogram. TODO calculate this programatically.
 
 class WaveformDataset(Dataset):
     def __init__(self, chopped_df, label_mapping_df):
@@ -38,7 +38,7 @@ class WaveformDataset(Dataset):
         waveform, sample_rate = torchaudio.load(f'{EGMD_DATASET_DIR}/{row.file_path}', frame_offset=begin_frame, num_frames=num_frames)
         num_frames = waveform.size(1)
         if num_frames < CLIP_LENGTH_FRAMES:
-            # If the clip is shorter than the clip length, pad it with zeros.
+            # If the waveform is shorter than the clip length, pad it with zeros.
             waveform = F.pad(waveform, (0, CLIP_LENGTH_FRAMES - num_frames))
         return waveform, row.label, sample_rate
 
@@ -50,13 +50,13 @@ class WaveformFeatures(nn.Module):
     def __init__(
         self,
         input_freq=44_100,
-        resample_freq=16_000,
-        n_fft=1024,
+        resample_freq=32_000,
+        n_fft=2048,
         n_mel=N_MEL,
     ):
         super().__init__()
         self.resample = T.Resample(orig_freq=input_freq, new_freq=resample_freq)
-        self.spectrogram = T.Spectrogram(n_fft=n_fft, power=2)
+        self.spectrogram = T.Spectrogram(n_fft=n_fft, hop_length=n_fft // 4)
         self.mel_scale = T.MelScale(n_mels=n_mel, sample_rate=resample_freq, n_stft=n_fft // 2 + 1)
 
     def forward(self, waveform: torch.Tensor) -> torch.Tensor:
@@ -192,7 +192,7 @@ if __name__ == '__main__':
     label_mapping_df = pd.read_csv(LABEL_MAPPING_PATH)
     chopped_df = pd.read_csv(CHOPPED_DATASET_PATH)
     slim_df = pd.read_csv(SLIM_METADATA_PATH)
-    # Merge the 'split' column from `slim_df` to `chopped_df` based on the `slim_id` (0-indexed row of the slim metadata).
+    # Merge the 'split' column from `slim_df` into `chopped_df` based on the `slim_id` (0-indexed row of the slim metadata).
     chopped_df['split'] = chopped_df.slim_id.map(slim_df['split'])
     train_df = chopped_df[chopped_df['split'] == 'train']
     val_df = chopped_df[chopped_df['split'] == 'validation']
@@ -200,14 +200,14 @@ if __name__ == '__main__':
     train_dataset = WaveformDataset(train_df, label_mapping_df)
     val_dataset = WaveformDataset(val_df, label_mapping_df)
 
-    train_loader = DataLoader(train_dataset, batch_size=32, num_workers=4, shuffle=True, pin_memory=True)
-    val_loader = DataLoader(val_dataset, batch_size=32, num_workers=4, shuffle=False, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=128, num_workers=4, shuffle=True, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=128, num_workers=4, shuffle=False, pin_memory=True)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = AudioClassifier(n_mel=N_MEL, num_classes=len(label_mapping_df)).to(device)
     waveform_features = WaveformFeatures(n_mel=N_MEL).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00015)
 
     train_losses, val_losses = train(
         model=model,
@@ -224,7 +224,7 @@ if __name__ == '__main__':
 
     # Empirically determine the time dimension of the mel spectrogram.
     # waveform_features = WaveformFeatures(n_mel=N_MEL).to(device)
-    # sample_waveform, _, _ = dataset[0]
+    # sample_waveform, _, _ = train_dataset[0]
     # sample_waveform = sample_waveform.unsqueeze(0).to(device)
     # mel_spectrogram = waveform_features(sample_waveform)
     # print(mel_spectrogram.size())  # [batch_size, 1, n_mel, time_dim]
