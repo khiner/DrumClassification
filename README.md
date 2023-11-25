@@ -32,7 +32,7 @@ However, if you would like to change any aspect of the data preprocessing, such 
 _See the scripts for explanations of their roles in data preparation._
 
 ```shell
-$ pip install pandas mido  # The only packages needed for preprocessing
+$ pip install pandas mido torchaudio  # Install packages needed for preprocessing.
 $ python create_slim_metadata.py  # Outputs `dataset/e-gmd-v1.0.0-slim.csv`
 $ python create_label_mapping  # Outputs `dataset/note_occurrences_slim.csv` and `label_mapping.csv`
 $ python chop_dataset.py  # Outputs `dataset/chopped_raw.csv`
@@ -51,6 +51,6 @@ The `explore_dataset.ipynb` notebook provides a variety of data exploration tool
 
 ```shell
 $ pip install torch torchaudio pandas numpy matplotlib tqdm
-$ pip install SoundFile  # On Mac, torchaudio needs a backend to load wav files.
+$ pip install SoundFile  # torchaudio needs a backend to load wav files.
 $ python train.py
 ```

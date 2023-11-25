@@ -20,12 +20,12 @@ if __name__ == '__main__':
         'Live Rock', 'Shuffle (Blues)', 'Alternative (METAL)', 'Rockin Gate (80s)',
         'West Coast (FUNK)', 'Live Fusion', 'Speed Metal',
         'Cassette (Lo-Fi Compress)', 'Bigga Bop (Jazz)', 'Funk Rock',
-        'Alternative (Rock)', 'Tight Prog', 'Unplugged',
+        'Alternative (Rock)', 'Tight Prog', 'Unplugged', 'JingleStacks (2nd Hi-Hat)',
+        'Raw Dnb (Layered Hybrid)', 'More Cowbell (Pop-Rock)', '808 Simple', '909 Simple', 'Nu RNB',
     ])
     # Just to be explicit about what we're keeping, and what we're leaving out:
     expected_exclude_kit_names = set([
-        'JingleStacks (2nd Hi-Hat)', 'Raw Dnb (Layered Hybrid)', 'More Cowbell (Pop-Rock)',
-        '808 Simple', '909 Simple', 'Nu RNB', 'Ele-Drum', 'Custom1', 'Custom2', 'Custom3',
+        'Ele-Drum', 'Custom1', 'Custom2', 'Custom3',
         'Compact Lite (w/ Tambourine HH)', 'Deep Daft',
     ])
     exclude_kit_names = all_kit_names - include_kit_names
