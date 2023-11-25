@@ -54,3 +54,15 @@ $ pip install torch torchaudio pandas numpy matplotlib tqdm
 $ pip install SoundFile  # torchaudio needs a backend to load wav files.
 $ python train.py
 ```
+
+## Run pretrained model
+
+A pretrained classification model is provided at `pretrained/final.zip`.
+To evaluate this model over the test set, unzip it to `pretrained/final.pth` and run:
+
+```shell
+$ pip install pandas torch torchaudio SoundFile
+$ python inference.py
+```
+
+This assumes you have already downloaded the dataset as explained above.
