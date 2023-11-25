@@ -4,3 +4,4 @@ dataset/chopped_raw.csv
 checkpoints/
 
 .vscode/
+.venv
