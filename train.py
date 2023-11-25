@@ -9,12 +9,14 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import time
+import os
 import numpy as np
 
 EGMD_DATASET_DIR = 'dataset/e-gmd-v1.0.0' # The original E-GMD dataset, where the audio files are stored.
 SLIM_METADATA_PATH = 'dataset/e-gmd-v1.0.0-slim.csv' # A curated subset of the E-GMD metadata rows.
 LABEL_MAPPING_PATH = 'dataset/label_mapping.csv' # Drum instrument label IDs, names, and MIDI note numbers.
 CHOPPED_DATASET_PATH = 'dataset/chopped.csv' # file_path, begin_frame, num_frames, label, slim_id
+CHECKPOINTS_DIR = 'checkpoints'
 
 SAMPLE_RATE = 44_100 # All audio files in the E-GMD dataset are 44.1 kHz.
 CLIP_LENGTH_FRAMES = 1 * SAMPLE_RATE # All clips are set to 1 second long.
@@ -120,11 +122,20 @@ def run_epoch(model, loader, waveform_features, criterion, optimizer, device, is
 
     return all_losses
 
+def save_checkpoint(model, optimizer, epoch, filename="checkpoint.pth"):
+    checkpoint = {
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict()
+    }
+    torch.save(checkpoint, filename)
+
 # Returns a pair of (training_losses, validation_losses).
 # Each element is a list of lists of losses, with the outer lists indexed by epoch and the inner lists indexed by batch.
 def train(model, train_loader, val_loader, waveform_features, criterion, optimizer, num_epochs, device):
     all_train_losses, all_val_losses = [], []
 
+    os.makedirs(CHECKPOINTS_DIR, exist_ok=True)
     for epoch in range(num_epochs):
         epoch_start_time = time.time()
         epoch_train_losses = run_epoch(model, train_loader, waveform_features, criterion, optimizer, device, is_training=True)
@@ -142,6 +153,8 @@ def train(model, train_loader, val_loader, waveform_features, criterion, optimiz
 
         all_train_losses.append(epoch_train_losses)
         all_val_losses.append(epoch_val_losses)
+
+        save_checkpoint(model, optimizer, epoch, filename=f'{CHECKPOINTS_DIR}/epoch_{epoch+1}.pth')
 
     return all_train_losses, all_val_losses
 
