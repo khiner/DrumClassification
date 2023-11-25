@@ -19,9 +19,9 @@ CHOPPED_DATASET_PATH = 'dataset/chopped.csv' # file_path, begin_frame, num_frame
 CHECKPOINTS_DIR = 'checkpoints'
 
 SAMPLE_RATE = 44_100 # All audio files in the E-GMD dataset are 44.1 kHz.
-CLIP_LENGTH_FRAMES = 1 * SAMPLE_RATE # All clips are set to 1 second long.
+CLIP_LENGTH_FRAMES = SAMPLE_RATE // 2 # All clips are set to a half second long.
 N_MEL = 128 # Number of mel bins to use for the mel spectrogram.
-N_MEL_FRAMES = 32 # Empirically determined from the mel spectrogram. TODO calculate this programatically.
+N_MEL_FRAMES = 16 # Empirically determined from the mel spectrogram. TODO calculate this programatically.
 
 class WaveformDataset(Dataset):
     def __init__(self, chopped_df, label_mapping_df):
