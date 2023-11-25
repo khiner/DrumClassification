@@ -1,8 +1,27 @@
 import pandas as pd
 import torch
+import numpy as np
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
+import seaborn as sns
 
 from model import WaveformDataset, WaveformFeatures, AudioClassifier, LABEL_MAPPING_PATH, CHOPPED_DATASET_PATH, SLIM_METADATA_PATH
+
+def confusion_matrix(labels, preds):
+    num_classes = len(np.unique(labels))
+    matrix = np.zeros([num_classes, num_classes], dtype=np.int64)
+    for label, pred in zip(labels, preds):
+        matrix[label, pred] += 1
+    return matrix
+
+def plot_confusion_matrix(cm, class_names, filename='confusion_matrix_2.png'):
+    fig, ax = plt.subplots(figsize=(12, 12))
+    sns.heatmap(cm, annot=True, fmt='d', ax=ax, cmap='Blues', xticklabels=class_names, yticklabels=class_names)
+    plt.ylabel('Actual')
+    plt.xlabel('Predicted')
+    plt.title('Confusion Matrix')
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    plt.close()
 
 if __name__ == '__main__':
     label_mapping_df = pd.read_csv(LABEL_MAPPING_PATH)
@@ -13,8 +32,9 @@ if __name__ == '__main__':
     inference_dataset = WaveformDataset(inference_df, label_mapping_df)
     inference_loader = DataLoader(inference_dataset, batch_size=256, shuffle=False, pin_memory=True)
 
+    num_classes = len(label_mapping_df)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = AudioClassifier(num_classes=len(label_mapping_df), n_mel=256, n_mel_frames=32).to(device)
+    model = AudioClassifier(num_classes=num_classes, n_mel=256, n_mel_frames=32).to(device)
     waveform_features = WaveformFeatures(n_mel=256).to(device)
 
     checkpoint_path = 'pretrained/final.pth'
@@ -22,7 +42,7 @@ if __name__ == '__main__':
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
 
-    total_samples, total_correct = 0, 0
+    all_predictions, all_labels = [], []
     for waveforms, labels, _ in inference_loader:
         waveforms = waveforms.to(device)
         labels = labels.to(device)
@@ -31,13 +51,13 @@ if __name__ == '__main__':
             mel_spectrograms = waveform_features(waveforms)
             logits = model(mel_spectrograms)
             _, predicted_labels = torch.max(logits, 1)
-            num_samples = len(labels)
-            num_correct = torch.sum(predicted_labels == labels).item()
-            total_samples += num_samples
-            total_correct += num_correct
-            print(f'Predicted labels: {predicted_labels}')
-            print(f'True labels: {labels}')
-            print(f'Batch accuracy: {num_correct / num_samples}')
-            print('')
+            all_predictions.extend(predicted_labels.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
 
+    cm = confusion_matrix(all_labels, all_predictions)
+    class_names = [label_mapping_df.iloc[i]['name'] for i in range(len(label_mapping_df))]
+    plot_confusion_matrix(cm, class_names)
+
+    total_correct = np.sum(np.diag(cm))
+    total_samples = np.sum(cm)
     print(f'{total_correct} of {total_samples} correct predictions for final accuracy: {total_correct / total_samples}')

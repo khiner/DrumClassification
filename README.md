@@ -61,7 +61,7 @@ A pretrained classification model is provided at `pretrained/final.zip`.
 To evaluate this model over the test set, unzip it to `pretrained/final.pth` and run:
 
 ```shell
-$ pip install pandas torch torchaudio SoundFile
+$ pip install pandas seaborn torch torchaudio SoundFile
 $ python inference.py
 ```
 
