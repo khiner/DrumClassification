@@ -158,16 +158,17 @@ def train(model, train_loader, val_loader, waveform_features, criterion, optimiz
 
     return all_train_losses, all_val_losses
 
-def plot_losses(all_train_losses, all_val_losses, filename='loss_plot.png'):
+def plot_losses(all_train_losses, all_val_losses, is_final_eval=False, filename='loss_plot.png'):
     mean_epoch_train_loss = [np.mean(epoch_losses) if epoch_losses else 0 for epoch_losses in all_train_losses]
     mean_epoch_val_loss = [np.mean(epoch_losses) if epoch_losses else 0 for epoch_losses in all_val_losses]
     epochs = list(range(1, len(mean_epoch_train_loss) + 1))
 
+    validation_label = 'Test' if is_final_eval else 'Validation'
     plt.figure(figsize=(12, 6))
 
     # Plot epoch losses.
     plt.plot(epochs, mean_epoch_train_loss, label='Epoch Train Loss', color='blue', marker='o')
-    plt.plot(epochs, mean_epoch_val_loss, label='Epoch Validation Loss', color='red', marker='o')
+    plt.plot(epochs, mean_epoch_val_loss, label=f'Epoch {validation_label} Loss', color='red', marker='o')
 
     # Plot batch losses.
     # for epoch, epoch_losses in enumerate(all_train_losses):
@@ -176,9 +177,9 @@ def plot_losses(all_train_losses, all_val_losses, filename='loss_plot.png'):
 
     # for epoch, epoch_losses in enumerate(all_val_losses):
     #     batch_indices = np.linspace(epoch, epoch + 1, len(epoch_losses))
-    #     plt.scatter(batch_indices, epoch_losses, color='lightcoral', alpha=0.5, label='Batch Validation Loss' if epoch == 1 else "")
+    #     plt.scatter(batch_indices, epoch_losses, color='lightcoral', alpha=0.5, label=f'Batch {validation_label} Loss' if epoch == 1 else "")
 
-    plt.title('Training and Validation Losses')
+    plt.title(f'Training and {validation_label} Losses')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.legend()
@@ -196,6 +197,12 @@ if __name__ == '__main__':
     chopped_df['split'] = chopped_df.slim_id.map(slim_df['split'])
     train_df = chopped_df[chopped_df['split'] == 'train']
     val_df = chopped_df[chopped_df['split'] == 'validation']
+    test_df = chopped_df[chopped_df['split'] == 'test']
+
+    # If `evaluate_final` is True, train on the entire training + validation set and evaluate on the test set.
+    evaluate_final = True
+    train_df = pd.concat([train_df, val_df]) if evaluate_final else train_df
+    val_df = test_df if evaluate_final else val_df
 
     train_dataset = WaveformDataset(train_df, label_mapping_df)
     val_dataset = WaveformDataset(val_df, label_mapping_df)
@@ -207,7 +214,7 @@ if __name__ == '__main__':
     model = AudioClassifier(n_mel=N_MEL, num_classes=len(label_mapping_df)).to(device)
     waveform_features = WaveformFeatures(n_mel=N_MEL).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.00015)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
     train_losses, val_losses = train(
         model=model,
@@ -220,7 +227,7 @@ if __name__ == '__main__':
         device=device
     )
 
-    plot_losses(train_losses, val_losses)
+    plot_losses(train_losses, val_losses, evaluate_final)
 
     # Empirically determine the time dimension of the mel spectrogram.
     # waveform_features = WaveformFeatures(n_mel=N_MEL).to(device)
