@@ -7,6 +7,9 @@ import torchaudio.transforms as T
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+import time
+import numpy as np
 
 EGMD_DATASET_DIR = 'dataset/e-gmd-v1.0.0' # The original E-GMD dataset, where the audio files are stored.
 SLIM_METADATA_PATH = 'dataset/e-gmd-v1.0.0-slim.csv' # A curated subset of the E-GMD metadata rows.
@@ -93,6 +96,7 @@ def run_epoch(model, loader, waveform_features, criterion, optimizer, device, is
         model.eval()
 
     total_loss, running_loss, batch_count = 0, 0, 0
+    all_losses = []
     for waveforms, labels, _ in tqdm(loader, desc="Train" if is_training else "Evaluate", leave=False):
         waveforms = waveforms.to(device)
         labels = labels.to(device)
@@ -108,18 +112,68 @@ def run_epoch(model, loader, waveform_features, criterion, optimizer, device, is
         running_loss += loss.item()
         batch_count += 1
         if batch_count % print_freq == 0:
-            print(f'  Batch {batch_count}: Running Avg Loss: {running_loss / print_freq:.4f}')
+            print(f'\tBatch {batch_count}: Running avg loss: {running_loss / print_freq:.4f}')
             running_loss = 0  # Reset running loss after logging
 
         total_loss += loss.item()
+        all_losses.append(loss.item())
 
-    return total_loss / len(loader)
+    return all_losses
 
+# Returns a pair of (training_losses, validation_losses).
+# Each element is a list of lists of losses, with the outer lists indexed by epoch and the inner lists indexed by batch.
 def train(model, train_loader, val_loader, waveform_features, criterion, optimizer, num_epochs, device):
+    all_train_losses, all_val_losses = [], []
+
     for epoch in range(num_epochs):
-        train_loss = run_epoch(model, train_loader, waveform_features, criterion, optimizer, device, is_training=True)
-        val_loss = run_epoch(model, val_loader, waveform_features, criterion, optimizer, device, is_training=False)
-        print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}')
+        epoch_start_time = time.time()
+        epoch_train_losses = run_epoch(model, train_loader, waveform_features, criterion, optimizer, device, is_training=True)
+        epoch_train_duration = time.time() - epoch_start_time
+        epoch_val_losses = run_epoch(model, val_loader, waveform_features, criterion, optimizer, device, is_training=False)
+        epoch_total_duration = time.time() - epoch_start_time
+        mean_epoch_train_loss = np.mean(epoch_train_losses)
+        mean_epoch_val_loss = np.mean(epoch_val_losses)
+        print(f'Epoch [{epoch+1}/{num_epochs}]:')
+        print(f'\tTrain loss: {mean_epoch_train_loss:.4f}')
+        print(f'\tVal loss: {mean_epoch_val_loss:.4f}')
+        print(f'\tTrain time: {epoch_train_duration:.3f} s')
+        print(f'\tVal time: {epoch_total_duration - epoch_train_duration:.3f} s')
+        print(f'\tTotal time: {epoch_total_duration:.3f} s')
+
+        all_train_losses.append(epoch_train_losses)
+        all_val_losses.append(epoch_val_losses)
+
+    return all_train_losses, all_val_losses
+
+def plot_losses(all_train_losses, all_val_losses, filename='loss_plot.png'):
+    mean_epoch_train_loss = [sum(epoch_losses) / len(epoch_losses) if epoch_losses else 0 for epoch_losses in all_train_losses]
+    mean_epoch_val_loss = [sum(epoch_losses) / len(epoch_losses) if epoch_losses else 0 for epoch_losses in all_val_losses]
+    epochs = list(range(1, len(mean_epoch_train_loss) + 1))
+
+    plt.figure(figsize=(12, 6))
+
+    # Plot epoch losses.
+    plt.plot(epochs, mean_epoch_train_loss, label='Epoch Train Loss', color='blue', marker='o')
+    plt.plot(epochs, mean_epoch_val_loss, label='Epoch Validation Loss', color='red', marker='o')
+
+    # Plot batch losses.
+    for epoch, epoch_losses in enumerate(all_train_losses):
+        batch_indices = np.linspace(epoch, epoch + 1, len(epoch_losses))
+        plt.scatter(batch_indices, epoch_losses, color='lightblue', alpha=0.5, label='Batch Train Loss' if epoch == 1 else "")
+
+    for epoch, epoch_losses in enumerate(all_val_losses):
+        batch_indices = np.linspace(epoch, epoch + 1, len(epoch_losses))
+        plt.scatter(batch_indices, epoch_losses, color='lightcoral', alpha=0.5, label='Batch Validation Loss' if epoch == 1 else "")
+
+    plt.title('Training and Validation Losses')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    plt.close()
+
 
 if __name__ == '__main__':
     label_mapping_df = pd.read_csv(LABEL_MAPPING_PATH)
@@ -142,7 +196,7 @@ if __name__ == '__main__':
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    train(
+    train_losses, val_losses = train(
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
@@ -152,6 +206,8 @@ if __name__ == '__main__':
         num_epochs=10,
         device=device
     )
+
+    plot_losses(train_losses, val_losses)
 
     # Empirically determine the time dimension of the mel spectrogram.
     # waveform_features = WaveformFeatures(n_mel=N_MEL).to(device)

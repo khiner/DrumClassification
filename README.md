@@ -50,7 +50,7 @@ The `explore_dataset.ipynb` notebook provides a variety of data exploration tool
 ### Train
 
 ```shell
-$ pip install torch torchaudio pandas
+$ pip install torch torchaudio pandas numpy matplotlib tqdm
 $ pip install SoundFile  # On Mac, torchaudio needs a backend to load wav files.
 $ python train.py
 ```
