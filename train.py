@@ -69,21 +69,23 @@ class AudioClassifier(nn.Module):
     def __init__(self, n_mel, num_classes):
         super(AudioClassifier, self).__init__()
 
-        self.conv1 = nn.Conv2d(1, 8, kernel_size=3, stride=1, padding=1)
-        self.conv2 = nn.Conv2d(8, 16, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.dropout = nn.Dropout(0.5)
 
-        time_dim_after_pooling = N_MEL_FRAMES // (2**2)
-        conv_output_size = n_mel // (2**2)
-        fc1_input_size = 16 * conv_output_size * time_dim_after_pooling
-        self.fc1 = nn.Linear(fc1_input_size, 256)
-        self.fc2 = nn.Linear(256, num_classes)
+        time_dim_after_pooling = N_MEL_FRAMES // (2**3)
+        conv_output_size = n_mel // (2**3)
+        fc1_input_size = 64 * conv_output_size * time_dim_after_pooling
+        self.fc1 = nn.Linear(fc1_input_size, 512)
+        self.fc2 = nn.Linear(512, num_classes)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(x.size(0), -1)
+        x = self.pool(F.relu(self.conv3(x)))
+        x = x.view(x.size(0), -1) # Flatten for the fully connected layers.
         x = F.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
