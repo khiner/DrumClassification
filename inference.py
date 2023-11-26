@@ -14,8 +14,8 @@ def confusion_matrix(labels, preds):
         matrix[label, pred] += 1
     return matrix
 
-def plot_confusion_matrix(cm, class_names, filename='confusion_matrix_2.png'):
-    fig, ax = plt.subplots(figsize=(12, 12))
+def plot_confusion_matrix(cm, class_names, filename='confusion_matrix.png'):
+    _, ax = plt.subplots(figsize=(12, 12))
     sns.heatmap(cm, annot=True, fmt='d', ax=ax, cmap='Blues', xticklabels=class_names, yticklabels=class_names)
     plt.ylabel('Actual')
     plt.xlabel('Predicted')
@@ -30,15 +30,16 @@ if __name__ == '__main__':
     chopped_df['split'] = chopped_df.slim_id.map(slim_df['split'])
     inference_df = chopped_df[chopped_df['split'] == 'test']
     inference_dataset = WaveformDataset(inference_df, label_mapping_df)
-    inference_loader = DataLoader(inference_dataset, batch_size=256, shuffle=False, pin_memory=True)
+    inference_loader = DataLoader(inference_dataset, batch_size=128, shuffle=False, pin_memory=True)
 
+    n_mel, n_mel_frames = 256, 32 # todo these hyperparams should be checkpointed.
     num_classes = len(label_mapping_df)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = AudioClassifier(num_classes=num_classes, n_mel=256, n_mel_frames=32).to(device)
-    waveform_features = WaveformFeatures(n_mel=256).to(device)
+    model = AudioClassifier(num_classes=num_classes, n_mel=n_mel, n_mel_frames=n_mel_frames).to(device)
+    waveform_features = WaveformFeatures(n_mel=n_mel).to(device)
 
     checkpoint_path = 'pretrained/final.pth'
-    checkpoint = torch.load(checkpoint_path)
+    checkpoint = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
 
