@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 import seaborn as sns
 
 from model import WaveformDataset, WaveformFeatures, AudioClassifier, LABEL_MAPPING_PATH, CHOPPED_DATASET_PATH, SLIM_METADATA_PATH
-from logistic_regression import LogisticRegressionModel
+from logistic_regression import LogisticRegressionModel, AudioFeatureExtractor
 
 def confusion_matrix(labels, preds):
     num_classes = len(np.unique(labels))
@@ -39,19 +39,17 @@ if __name__ == '__main__':
     inference_dataset = WaveformDataset(inference_df, label_mapping_df)
     inference_loader = DataLoader(inference_dataset, batch_size=128, shuffle=False, pin_memory=True)
 
-    n_mel, n_mel_frames = 256, 32
     num_classes = len(label_mapping_df)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    waveform_features = WaveformFeatures(n_mel=n_mel).to(device)
+    feature_extractor = AudioFeatureExtractor().to(device)
 
-    if args.logistic_regression:
-        # Use the logistic regression model
-        input_size = n_mel * n_mel_frames
-        model = LogisticRegressionModel(input_size, num_classes).to(device)
+    if True:
+        # Assuming the number of features from feature_extractor matches the input size of logistic regression
+        model = LogisticRegressionModel(feature_extractor.num_features, num_classes).to(device)
         # Load your logistic regression model weights here if available
     else:
         # Use the checkpointed CNN model
-        model = AudioClassifier(num_classes=num_classes, n_mel=n_mel, n_mel_frames=n_mel_frames).to(device)
+        model = AudioClassifier(num_classes=num_classes, n_mel=256, n_mel_frames=32).to(device)
         checkpoint_path = 'pretrained/final.pth'
         checkpoint = torch.load(checkpoint_path, map_location=device)
         model.load_state_dict(checkpoint['model_state_dict'])
@@ -64,11 +62,14 @@ if __name__ == '__main__':
         labels = labels.to(device)
 
         with torch.no_grad():
-            mel_spectrograms = waveform_features(waveforms)
             if args.logistic_regression:
-                # Reshape for logistic regression
-                mel_spectrograms = mel_spectrograms.reshape(mel_spectrograms.size(0), -1)
-            logits = model(mel_spectrograms)
+                features = feature_extractor(waveforms)
+                features = features.reshape(features.size(0), -1)
+                logits = model(features)
+            else:
+                mel_spectrograms = feature_extractor(waveforms)  # Assuming you still want to use mel spectrograms for CNN
+                logits = model(mel_spectrograms)
+
             _, predicted_labels = torch.max(logits, 1)
             all_predictions.extend(predicted_labels.cpu().numpy())
             all_labels.extend(labels.cpu().numpy())
