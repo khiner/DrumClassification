@@ -4,6 +4,8 @@ A drum classification model trained on Magenta's [Expanded Groove MIDI Dataset](
 
 Final project for Computational Data Analysis (CSE-6740).
 
+[Slide deck](https://docs.google.com/presentation/d/1ufFL36nH9eNNpiOiuhE9WII_oXde6DfoOEaypKhZuWA/edit?usp=sharing)
+
 ## Training
 
 ### Download data
