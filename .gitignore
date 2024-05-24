@@ -4,6 +4,7 @@ dataset/chopped_raw.csv
 checkpoints/
 **/**.pth
 
+.DS_Store
 .vscode/
 .venv
 __pycache__/

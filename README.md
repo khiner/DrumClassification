@@ -1,10 +1,11 @@
 # Drum classification
 
-A drum classification model trained on Magenta's [Expanded Groove MIDI Dataset](https://magenta.tensorflow.org/datasets/e-gmd).
+A PyTorch drum classification model trained on Magenta's [Expanded Groove MIDI Dataset](https://magenta.tensorflow.org/datasets/e-gmd).
 
 Final project for Computational Data Analysis (CSE-6740).
 
-[Slide deck](https://docs.google.com/presentation/d/1ufFL36nH9eNNpiOiuhE9WII_oXde6DfoOEaypKhZuWA/edit?usp=sharing)
+* [Paper](Report.pdf)
+* [Slide deck](https://docs.google.com/presentation/d/1ufFL36nH9eNNpiOiuhE9WII_oXde6DfoOEaypKhZuWA/edit?usp=sharing)
 
 ## Training
 
