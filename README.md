@@ -6,6 +6,7 @@ Final project for Computational Data Analysis (CSE-6740).
 
 * [Paper](Report.pdf)
 * [Slide deck](https://docs.google.com/presentation/d/1ufFL36nH9eNNpiOiuhE9WII_oXde6DfoOEaypKhZuWA/edit?usp=sharing)
+* [Blog post](https://karlhiner.com/drum_classification)
 
 ## Training
 
